@@ -53,17 +53,17 @@ static esp_err_t rc522_spi_init() {
     };
 
     spi_device_interface_config_t devcfg = {
-        .clock_speed_hz = 5000000,
+        .address_bits = 8,
+        .clock_speed_hz = 10 * 1000 * 1000,
         .mode = 0,
         .spics_io_num = hndl->config->sda_io,
-        .queue_size = 7,
-        .flags = SPI_DEVICE_HALFDUPLEX
+        .queue_size = 20
     };
 
-    esp_err_t err = spi_bus_initialize(hndl->config->spi_host_id, &buscfg, 0);
+    esp_err_t err = spi_bus_initialize(hndl->config->spi_host_id, &buscfg, SPI_DMA_CH_AUTO);
 
     if(err != ESP_OK) {
-        return err;
+        ESP_LOGE(TAG,"SPI already initialised");
     }
 
     err = spi_bus_add_device(hndl->config->spi_host_id, &devcfg, &hndl->spi);
@@ -77,22 +77,15 @@ static esp_err_t rc522_spi_init() {
 }
 
 static esp_err_t rc522_write_n(uint8_t addr, uint8_t n, uint8_t *data) {
-    uint8_t* buffer = (uint8_t*) malloc(n + 1);
-    buffer[0] = (addr << 1) & 0x7E;
-
-    for (uint8_t i = 1; i <= n; i++) {
-        buffer[i] = data[i-1];
-    }
 
     spi_transaction_t t;
     memset(&t, 0, sizeof(t));
 
-    t.length = 8 * (n + 1);
-    t.tx_buffer = buffer;
+    t.addr = (addr << 1) & 0x7E;
+    t.length = 8 * n;
+    t.tx_buffer = data;
 
-    esp_err_t ret = spi_device_transmit(hndl->spi, &t);
-
-    free(buffer);
+    esp_err_t ret = spi_device_polling_transmit(hndl->spi, &t);
 
     return ret;
 }
@@ -111,13 +104,12 @@ static uint8_t* rc522_read_n(uint8_t addr, uint8_t n) {
 
     uint8_t* buffer = (uint8_t*) malloc(n);
     
-    t.flags = SPI_TRANS_USE_TXDATA;
-    t.length = 8;
-    t.tx_data[0] = ((addr << 1) & 0x7E) | 0x80;
+    t.length = 8 * n;
+    t.addr = ((addr << 1) & 0x7E) | 0x80;
     t.rxlength = 8 * n;
     t.rx_buffer = buffer;
 
-    esp_err_t ret = spi_device_transmit(hndl->spi, &t);
+    esp_err_t ret = spi_device_polling_transmit(hndl->spi, &t);
     assert(ret == ESP_OK);
 
     return buffer;
