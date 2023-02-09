@@ -206,7 +206,7 @@ esp_err_t rc522_init(rc522_config_t* config) {
     rc522_antenna_on();
 
     hndl->running = true;
-    if (xTaskCreate(rc522_task, "rc522_task", hndl->config->task_stack_size, NULL, hndl->config->task_priority, &hndl->task_handle) != pdTRUE) {
+    if (xTaskCreatePinnedToCore(rc522_task, "rc522_task", hndl->config->task_stack_size, NULL, hndl->config->task_priority, &hndl->task_handle,0) != pdTRUE) {
         ESP_LOGE(TAG, "Fail to create rc522 task");
         rc522_destroy();
         return err;
