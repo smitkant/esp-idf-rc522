@@ -188,9 +188,11 @@ esp_err_t rc522_init(rc522_config_t* config) {
     const uint8_t test_addr = 0x24, test_val = 0x25;
     for(uint8_t i = test_val; i < test_val + 2; i++) {
         if((err = rc522_write(test_addr, i)) != ESP_OK || rc522_read(test_addr) != i) {
-            ESP_LOGE(TAG, "RW test fail");
+            // a dead / missing MFRC522 reads back garbage while the SPI write itself succeeds,
+            // so err is still ESP_OK here: report it, or the caller thinks init passed
+            ESP_LOGE(TAG, "RW test fail, MFRC522 not responding");
             rc522_destroy();
-            return err;
+            return err != ESP_OK ? err : ESP_ERR_NOT_FOUND;
         }
     }
     // ------- End of RW test --------
